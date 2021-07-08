@@ -1,0 +1,149 @@
+import java.nio.file.*
+
+plugins {
+    id 'java'
+    id 'org.jetbrains.kotlin.jvm' version '1.4.32'
+    id 'distribution'
+    id 'application'
+    id 'edu.sc.seis.launch4j' version '2.5.0'
+}
+
+group 'me.ckho'
+version '1.0-SNAPSHOT'
+
+repositories {
+    mavenCentral()
+}
+
+mainClassName = "MainKt"
+
+application {
+    mainClass = 'MainKt'
+}
+
+launch4j {
+    // when use openjdk 11, you dont have jre, so preferJdk
+    // if you use azul or adopt, you can choose jre
+    jdkPreference = 'preferJdk'
+    // just place a jre folder with launch4j generated exe in the same level
+    bundledJrePath = 'jre'
+    bundledJre64Bit = true
+    mainClassName = 'MainKt'
+    icon = "${projectDir}/src/main/resources/icon.ico"
+}
+
+dependencies {
+    implementation "org.jetbrains.kotlin:kotlin-stdlib"
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.4.2'
+    implementation "com.zaxxer:HikariCP:4.0.3"
+    implementation "mysql:mysql-connector-java:8.0.21"
+    implementation "org.jdbi:jdbi3-core:3.18.1"
+    implementation "org.jdbi:jdbi3-sqlobject:3.18.1"
+    implementation "com.formdev:flatlaf:1.1.2"
+    implementation 'com.formdev:flatlaf-intellij-themes:1.1.2'
+    implementation "org.apache.poi:poi:5.0.0"
+    implementation "org.apache.poi:poi-ooxml:5.0.0"
+
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.7.0'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.7.0'
+}
+
+test {
+    useJUnitPlatform()
+}
+
+jar {
+    archiveBaseName = 'CidQuery'
+    manifest {
+        attributes 'Main-Class': 'MainKt'
+    }
+//    from {
+//        configurations.runtimeClasspath.collect {
+//            it.isDirectory() ? it : zipTree(it)
+//        }
+//    }
+}
+
+distributions {
+    main {
+        distributionBaseName = 'CidQuery'
+    }
+}
+
+compileKotlin {
+    kotlinOptions.jvmTarget = "1.8"
+}
+compileTestKotlin {
+    kotlinOptions.jvmTarget = "1.8"
+}
+
+def modifyFile(srcFile, Closure c) {
+    modifyFile(srcFile, srcFile, c)
+}
+
+def modifyFile(srcFile, destFile, Closure c = { println it; return it }) {
+    StringBuffer ret = new StringBuffer()
+    File src = new File(srcFile)
+    File dest = new File(destFile)
+
+    src.withReader { reader ->
+        reader.eachLine {
+            def line = c(it)
+            if (line != null) {
+                ret.append(line)
+                ret.append("\n")
+            }
+        }
+    }
+    dest.delete()
+    dest.write(ret.toString())
+}
+
+def copyFile(String originFile, String destFile, boolean overwrite = false) {
+
+    Path origPath = Paths.get(originFile)
+    Path destPath = Paths.get(destFile)
+    def fileAtDestination = destPath.toFile()
+    if (fileAtDestination.exists()) {
+        if (overwrite) {
+            fileAtDestination.delete()
+            Files.copy(origPath, destPath)
+        } else {
+            println("Won't overwrite existing file $fileAtDestination")
+            println("Call 'copyFile(orig, dest, true)' to delete the existing file first")
+        }
+    } else {
+        // There's no file at the destination yet
+        Files.copy(origPath, destPath)
+    }
+}
+
+startScripts {
+    classpath = files('$APP_HOME/lib/*')
+
+    // If clean the build dir, the task will failed.
+    def startScriptDir = outputDir.getAbsolutePath()
+    if (!new File(startScriptDir).exists()) {
+        println("Start scripts manipulation skipped.")
+    } else {
+        // println("I am here $startScriptDir")
+        def winStartupScript = startScriptDir + "/" + applicationName + ".bat"
+        def winStartupScriptNoConsole = startScriptDir + "/" + applicationName + "WithoutConsole.bat"
+        copyFile(winStartupScript, winStartupScriptNoConsole, true)
+
+        modifyFile(winStartupScript) {
+            // javaw.exe doesn't have a console
+            if (it.contains("java.exe")) {
+                return it.replace("java.exe", "javaw.exe")
+            }
+            // Command that launches the app
+            else if (it.startsWith("\"%JAVA_EXE%\" %DEFAULT_JVM_OPTS%")) {
+                return "start \"\" /b " + it
+            }
+            // Leave the line unchanged
+            else {
+                return it
+            }
+        }
+    }
+}
