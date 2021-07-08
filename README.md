@@ -7,7 +7,7 @@ Swing.
 
 ![MainScene](screenshots/Screenshot 2021-07-08_170250.jpg)
 
-**![About](screenshots/Screenshot 2021-07-08_170308.jpg)**
+![About](screenshots/Screenshot 2021-07-08_170308.jpg)
 
 ## 3th Party Dependency:
 
